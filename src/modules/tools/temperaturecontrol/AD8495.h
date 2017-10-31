@@ -37,6 +37,7 @@ class AD8495 : public TempSensor
         float AD8495_offset;
         
         float min_temp, max_temp;
+        RingBuffer<float,16> readings;
 };
 
 #endif

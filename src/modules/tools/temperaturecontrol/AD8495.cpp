@@ -48,11 +48,33 @@ void AD8495::UpdateConfig(uint16_t module_checksum, uint16_t name_checksum)
 
 float AD8495::get_temperature()
 {
-    float t= adc_value_to_temperature(new_AD8495_reading());
-    // keep track of min/max for M305
-    if(t > max_temp) max_temp= t;
-    if(t < min_temp) min_temp= t;
-    return t;
+    float temperature= adc_value_to_temperature(new_AD8495_reading());
+    
+    if (readings.size() >= readings.capacity()) {
+        readings.delete_tail();
+    }
+
+    // Discard occasional errors...
+    if(!isinf(temperature)) {
+        readings.push_back(temperature);
+        // keep track of min/max for M305
+        if(temperature > max_temp) max_temp= temperature;
+        if(temperature < min_temp) min_temp= temperature;    
+    }
+    else if(readings.size() > 0) { //And start subtracting from valid readings so we aren't stuck with the last 'good' samples
+        readings.delete_tail();
+    }
+    
+    if(readings.size()==0) return infinityf();
+
+    // Return an average of the last readings
+    float sum = 0;
+    for (int i=0; i<readings.size(); i++) {
+        sum += *readings.get_ref(i);
+    }
+    
+    return sum / readings.size();
+
 }
 
 void AD8495::get_raw()
