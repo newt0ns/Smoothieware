@@ -121,6 +121,9 @@ void Max31855::on_idle()
     {
         readings.push_back(temperature);
     }
+    else if(readings.size() > 0) { //And start subtracting from valid readings so we aren't stuck with the last 'good' samples
+        readings.delete_tail();
+    }
 
     // don't read again until get_temperature() is called
     this->read_flag=false;
