@@ -243,12 +243,9 @@ bool Endstops::load_old_config()
 // Get config using new syntax supports ABC
 bool Endstops::load_config()
 {
-<<<<<<< HEAD
-=======
     bool limit_enabled= false;
     size_t max_index= 0;
-
->>>>>>> upstream/edge
+    
     std::array<homing_info_t, k_max_actuators> temp_axis_array; // needs to be at least XYZ, but allow for ABC
     {
         homing_info_t t;
