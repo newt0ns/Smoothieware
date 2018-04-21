@@ -24,11 +24,13 @@
 
 #define AD8495_pin_checksum            CHECKSUM("ad8495_pin")
 #define AD8495_offset_checksum         CHECKSUM("ad8495_offset")
+#define AD8495_alpha_checksum          CHECKSUM("ad8495_alpha")
 
 AD8495::AD8495()
 {
     min_temp= 999;
     max_temp= 0;
+    this->smoothed_temperature = infinityf();
 }
 
 AD8495::~AD8495()
@@ -41,40 +43,42 @@ void AD8495::UpdateConfig(uint16_t module_checksum, uint16_t name_checksum)
     // Thermistor pin for ADC readings
     this->AD8495_pin.from_string(THEKERNEL->config->value(module_checksum, name_checksum, AD8495_pin_checksum)->required()->as_string());
     this->AD8495_offset = THEKERNEL->config->value(module_checksum, name_checksum, AD8495_offset_checksum)->by_default(0)->as_number(); // Stated offset. For Adafruit board it is 250C. If pin 2(REF) of amplifier is connected to 0V then there is 0C offset.
-	
+	this->alpha = THEKERNEL->config->value(module_checksum, name_checksum, AD8495_alpha_checksum)->by_default(1)->as_number();
     THEKERNEL->adc->enable_pin(&AD8495_pin);
 }
 
 
 float AD8495::get_temperature()
 {
-    float temperature= adc_value_to_temperature(new_AD8495_reading());
+    float raw_temperature= adc_value_to_temperature(new_AD8495_reading());
     
-    if (readings.size() >= readings.capacity()) {
-        readings.delete_tail();
-    }
 
-    // Discard occasional errors...
-    if(!isinf(temperature)) {
-        readings.push_back(temperature);
+    if(!isinf(raw_temperature)) {
+
+        if(isinf(this->smoothed_temperature)) //Re-establishing a valid temperature history, reset the filter
+        {
+            this->smoothed_temperature = raw_temperature;
+        }
+        else 
+        {
+            if(raw_temperature > this->smoothed_temperature)
+            {
+                this->smoothed_temperature = this->smoothed_temperature+((raw_temperature - this->smoothed_temperature)/this->alpha);
+            }
+            else
+            {
+                this->smoothed_temperature = this->smoothed_temperature-((this->smoothed_temperature - raw_temperature)/this->alpha);
+            }
+        }
+
         // keep track of min/max for M305
-        if(temperature > max_temp) max_temp= temperature;
-        if(temperature < min_temp) min_temp= temperature;    
+        if(this->smoothed_temperature > this->max_temp) this->max_temp= this->smoothed_temperature;
+        if(this->smoothed_temperature < this->min_temp) this->min_temp= this->smoothed_temperature;
+     
+        return this->smoothed_temperature;   
     }
-    else if(readings.size() > 0) { //And start subtracting from valid readings so we aren't stuck with the last 'good' samples
-        readings.delete_tail();
-    }
-    
-    if(readings.size()==0) return infinityf();
-
-    // Return an average of the last readings
-    float sum = 0;
-    for (int i=0; i<readings.size(); i++) {
-        sum += *readings.get_ref(i);
-    }
-    
-    return sum / readings.size();
-
+        this->smoothed_temperature = infinityf();
+        return infinityf();
 }
 
 void AD8495::get_raw()
